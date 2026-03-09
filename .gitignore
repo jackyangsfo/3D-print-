@@ -1,0 +1,19 @@
+# Python
+venv/
+venv_x86/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Optional: large export files (uncomment if you don't want to track)
+# exports/*.stl
+# exports/*.gcode
+# exports/*.acode
