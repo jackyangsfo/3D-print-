@@ -9,16 +9,18 @@ import json
 import platform
 import subprocess
 import sys
-import tempfile
 import threading
 from pathlib import Path
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from parts_config import PARTS
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 MAIN_SCRIPT = SCRIPT_DIR / "3D print.py"
 GENERATE_ONE_SCRIPT = SCRIPT_DIR / "generate_one.py"
+PREVIEW_SCRIPT = SCRIPT_DIR / "preview_3d.py"
 
 ON_MACOS = platform.system() == "Darwin"
 cad_models = None
@@ -36,84 +38,6 @@ def _ensure_cadquery():
     spec.loader.exec_module(cad_models)
     cq = __import__("cadquery")
     OUTPUT_DIR = cad_models.OUTPUT_DIR
-
-
-PARTS = {
-    "Simple cylinder": {
-        "fn": "make_simple_cylinder",
-        "params": [("diameter", 20, "Diameter (mm)"), ("height", 10, "Height (mm)")],
-        "export_stl_step": True,
-    },
-    "M12 lens holder": {
-        "fn": "make_m12_lens_holder",
-        "params": [
-            ("lens_diameter", 12, "Lens hole diameter (mm)"),
-            ("body_diameter", 20, "Body diameter (mm)"),
-            ("height", 15, "Height (mm)"),
-        ],
-        "export_stl_step": True,
-    },
-    "Optical test fixture": {
-        "fn": "generate_m12_optical_test_fixture",
-        "params": [
-            ("sensor_width", 10, "Sensor width (mm)"),
-            ("sensor_height", 8, "Sensor height (mm)"),
-            ("lens_mount", "M12 (12mm)", "Lens mount"),
-            ("working_distance", 5, "Working distance (mm)"),
-            ("export_name", "optical_test_fixture", "Export filename (no ext)"),
-        ],
-        "export_inside": True,
-        "lens_mount_choices": {"M8 (8mm)": 8, "M12 (12mm)": 12, "M16 (16mm)": 16, "C/CS (25.4mm)": 25.4},
-    },
-    "Camera fixture": {
-        "fn": "generate_camera_fixture",
-        "params": [
-            ("sensor_width", 10, "Sensor width (mm)"),
-            ("sensor_height", 8, "Sensor height (mm)"),
-            ("lens_diameter", 12, "Lens diameter (mm)"),
-            ("pcb_width", 20, "PCB width (mm)"),
-            ("pcb_height", 20, "PCB height (mm)"),
-            ("pcb_thickness", 1.6, "PCB thickness (mm)"),
-            ("working_distance", 5, "Working distance (mm)"),
-            ("mounting_hole_diameter", 2.2, "Mounting hole Ø (mm)"),
-            ("mounting_hole_spacing_x", 16, "Hole spacing X (mm)"),
-            ("mounting_hole_spacing_y", 16, "Hole spacing Y (mm)"),
-            ("export_name", "camera_fixture", "Export filename (no ext)"),
-        ],
-        "export_inside": True,
-    },
-    "Lens spacer": {
-        "fn": "make_lens_spacer",
-        "params": [
-            ("outer_diameter", 20, "Outer diameter (mm)"),
-            ("inner_diameter", 12, "Inner diameter (mm)"),
-            ("thickness", 2, "Thickness (mm)"),
-        ],
-        "export_stl_step": True,
-    },
-    "Test jig block": {
-        "fn": "make_test_jig_block",
-        "params": [
-            ("width", 40, "Width (mm)"),
-            ("depth", 30, "Depth (mm)"),
-            ("height", 15, "Height (mm)"),
-            ("hole_diameter", 12, "Center hole Ø (mm)"),
-        ],
-        "export_stl_step": True,
-    },
-    "PCBA holder": {
-        "fn": "make_pcba_holder",
-        "params": [
-            ("length", 100, "Length (mm)"),
-            ("width", 80, "Width (mm)"),
-            ("thickness", 2, "Thickness (mm)"),
-            ("hole_diameter", 2.2, "Hole Ø (mm)"),
-            ("hole_inset", 5, "Hole inset from edge (mm)"),
-            ("export_name", "pcba_holder", "Export filename (no ext)"),
-        ],
-        "export_inside": True,
-    },
-}
 
 
 def parse_float(s, default):
@@ -235,6 +159,51 @@ def choose_dir():
         app.out_dir_var.set(path)
 
 
+def do_preview():
+    """在独立窗口中用 CadQuery VTK 查看器预览当前参数的 3D 模型。"""
+    part_key = app.part_var.get()
+    if not part_key or part_key not in PARTS:
+        app.status_var.set("Please select a part type.")
+        return
+    info = PARTS[part_key]
+    params = {}
+    for item in info["params"]:
+        key, default, _ = item[0], item[1], item[2]
+        if key not in app.entries:
+            continue
+        val = app.entries[key].get().strip()
+        if key == "lens_mount" and "lens_mount_choices" in info:
+            params["lens_diameter"] = info["lens_mount_choices"].get(val, 12)
+        elif isinstance(default, (int, float)):
+            params[key] = parse_float(val, default)
+        else:
+            params[key] = val or default
+    data = {"part_key": part_key, "param_values": params}
+    app.status_var.set("Opening 3D preview...")
+    try:
+        if ON_MACOS:
+            proc = subprocess.Popen(
+                ["arch", "-x86_64", sys.executable, str(PREVIEW_SCRIPT)],
+                stdin=subprocess.PIPE,
+                cwd=str(SCRIPT_DIR),
+                text=True,
+            )
+        else:
+            proc = subprocess.Popen(
+                [sys.executable, str(PREVIEW_SCRIPT)],
+                stdin=subprocess.PIPE,
+                cwd=str(SCRIPT_DIR),
+                text=True,
+            )
+        proc.stdin.write(json.dumps(data))
+        proc.stdin.close()
+    except Exception as e:
+        app.status_var.set(f"Preview error: {e}")
+        messagebox.showerror("Preview", str(e))
+        return
+    app.status_var.set("Preview window opened. Close the viewer when done.")
+
+
 def build_ui(root):
     root.title("3D Print — Parametric Parts")
     root.minsize(380, 420)
@@ -269,8 +238,12 @@ def build_ui(root):
     app.export_gcode_var = tk.BooleanVar(value=False)
     ttk.Checkbutton(main, text="Also export G-code (Python-generated)", variable=app.export_gcode_var).pack(anchor=tk.W, pady=4)
 
-    app.generate_btn = ttk.Button(main, text="Generate STL / STEP / G-code", command=do_generate)
-    app.generate_btn.pack(pady=12)
+    btn_row = ttk.Frame(main)
+    btn_row.pack(pady=12)
+    app.preview_btn = ttk.Button(btn_row, text="Preview 3D", command=do_preview)
+    app.preview_btn.pack(side=tk.LEFT, padx=(0, 8))
+    app.generate_btn = ttk.Button(btn_row, text="Generate STL / STEP / G-code", command=do_generate)
+    app.generate_btn.pack(side=tk.LEFT)
 
     app.status_var = tk.StringVar(value="Choose part, set parameters, then Generate.")
     ttk.Label(main, textvariable=app.status_var, foreground="gray").pack(anchor=tk.W)
@@ -287,6 +260,7 @@ class App:
     export_name_var = None
     export_gcode_var = None
     status_var = None
+    preview_btn = None
     generate_btn = None
 
 

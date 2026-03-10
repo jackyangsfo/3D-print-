@@ -5,7 +5,10 @@ Pipeline: CadQuery → tessellate → slice → G-code
 依赖: pip install meshcut numpy
 """
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 try:
     import meshcut
@@ -51,8 +54,8 @@ def export_part_to_gcode(
             )
             if contours is not None and len(contours) > 0:
                 layers.append((z, contours))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Slice layer z=%.3f skipped: %s", z, e, exc_info=True)
         z += layer_height
 
     # 挤出量计算：体积 = 线宽 * 层高 * 线段长度

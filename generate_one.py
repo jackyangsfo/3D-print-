@@ -17,6 +17,10 @@ if sys.platform == "darwin":
 import importlib.util
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from parts_config import PARTS
+
 MAIN_SCRIPT = SCRIPT_DIR / "3D print.py"
 spec = importlib.util.spec_from_file_location("cad_models", MAIN_SCRIPT)
 cad_models = importlib.util.module_from_spec(spec)
@@ -34,15 +38,6 @@ def main():
     export_name = data["export_name"]
     export_gcode = data.get("export_gcode", False)
 
-    PARTS = {
-        "Simple cylinder": {"fn": "make_simple_cylinder", "export_stl_step": True},
-        "M12 lens holder": {"fn": "make_m12_lens_holder", "export_stl_step": True},
-        "Optical test fixture": {"fn": "generate_m12_optical_test_fixture", "export_inside": True},
-        "Camera fixture": {"fn": "generate_camera_fixture", "export_inside": True},
-        "Lens spacer": {"fn": "make_lens_spacer", "export_stl_step": True},
-        "Test jig block": {"fn": "make_test_jig_block", "export_stl_step": True},
-        "PCBA holder": {"fn": "make_pcba_holder", "export_inside": True},
-    }
     info = PARTS[part_key]
     fn_name = info["fn"]
     params = dict(param_values)
@@ -58,8 +53,6 @@ def main():
         cq.exporters.export(part, str(step_path))
         if export_gcode:
             try:
-                import sys
-                sys.path.insert(0, str(SCRIPT_DIR))
                 from gcode_export import export_part_to_gcode
                 gcode_path = out_dir / f"{export_name}.gcode"
                 export_part_to_gcode(part, str(gcode_path))
@@ -71,8 +64,6 @@ def main():
     else:
         if export_gcode:
             try:
-                import sys
-                sys.path.insert(0, str(SCRIPT_DIR))
                 from gcode_export import export_part_to_gcode
                 gcode_path = out_dir / f"{export_name}.gcode"
                 export_part_to_gcode(part, str(gcode_path))
