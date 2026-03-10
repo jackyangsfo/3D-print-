@@ -1,19 +1,31 @@
 # 参数化 3D 打印件生成 — 使用说明
 
-用 Python 生成 3D 模型并导出为可打印的 STL/STEP/G-code 文件，适合镜头座、相机夹具、MTF 治具、光学支架等参数化零件。支持 **Python 直接生成 G-code**，无需切片软件。
+用 Python 生成 3D 模型并导出为可打印的 STL/STEP/G-code 文件，适合镜头座、相机夹具、MTF 治具、光学支架等参数化零件。支持 **Python 直接生成 G-code**，无需切片软件。支持 **在 Python 内预览 3D 模型**（CadQuery VTK 查看器），无需额外软件。
 
 **参数化光学测试夹具**：输入 sensor size、lens diameter、working distance 三参数，自动生成完整 M12 相机测试座 STL，适用于 AnkerMake 等打印机，面向 camera module 实验室。
+
+**获取项目：** `git clone https://github.com/jackyangsfo/3D-print-.git`
 
 ---
 
 ## 一、环境准备
 
+- **Python**：建议 **3.11 或 3.12**（cadquery-ocp 暂不支持 Python 3.14）。Windows 可用 `winget install Python.Python.3.12` 安装。
+
 ### 1. 创建并激活虚拟环境（如尚未创建）
 
+**Windows (PowerShell)：**
+```powershell
+cd "path\to\3D print"
+py -3.12 -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+**macOS / Linux：**
 ```bash
-cd "/Users/qianyang/Documents/Project /3D print"
+cd "/path/to/3D print"
 python3 -m venv venv
-source venv/bin/activate   # macOS/Linux
+source venv/bin/activate
 ```
 
 ### 2. 安装依赖
@@ -54,9 +66,16 @@ python "3D print.py" --no-gcode
 python gui.py
 ```
 
+- 选择零件类型、修改参数后，可先点 **Preview 3D** 在 CadQuery VTK 窗口中旋转、缩放预览模型（不导出文件）。
+- 点 **Generate STL / STEP / G-code** 导出；勾选 **Also export G-code** 可同时生成 Python 切片得到的 G-code。  
+Tkinter 为 Python 内置，无需额外安装。
+
 macOS 上若出现 segfault，改用：`./run_gui.sh`（通过 Rosetta 2 运行）。
 
-在窗口里选择零件类型、修改参数、勾选 **Also export G-code** 可同时生成 Python 切片得到的 G-code，点击 **Generate** 即可。Tkinter 为 Python 内置，无需额外安装。
+**仅预览 3D（命令行）：** 不打开 GUI，直接弹出默认零件预览窗口：
+```bash
+python preview_3d.py
+```
 
 | 文件 | 说明 |
 |------|------|
@@ -173,7 +192,7 @@ STL 会出现在中间的**预览区**，可旋转、缩放查看。
 2. 选打印机 + 材料 → 设层高、填充等 → 点 **Slice**  
 3. **Print** 或 **Export G-code** 到 U 盘/SD → 上机打印  
 
-STL 文件路径示例：`/Users/qianyang/Documents/Project /3D print/exports/pcba_holder.stl`
+STL 文件路径示例：项目目录下 `exports/pcba_holder.stl`（如 Windows：`C:\...\3D print\exports\pcba_holder.stl`）。
 
 ---
 
@@ -319,7 +338,9 @@ python "3D print.py"
 ```
 3D print/
 ├── 3D print.py       # 主脚本：定义函数 + main() 生成示例
-├── gui.py           # Tkinter 图形界面
+├── gui.py           # Tkinter 图形界面（含 Preview 3D / Generate）
+├── preview_3d.py    # 3D 预览脚本（CadQuery VTK 查看器）
+├── parts_config.py   # 零件配置（GUI 与 generate_one 共用）
 ├── gcode_export.py  # Python G-code 生成（meshcut 切片）
 ├── generate_one.py  # 子进程生成脚本（macOS GUI 用）
 ├── m12_optical_fixture.py  # M12 光学测试夹具快速 CLI（三参数）
@@ -327,6 +348,7 @@ python "3D print.py"
 ├── run_3d_print.sh  # macOS 命令行启动脚本（Rosetta 2）
 ├── requirements.txt # 依赖（cadquery, meshcut, numpy）
 ├── README.md        # 本说明
+├── docs/            # 文档（如 STEP-vs-STL.md）
 └── exports/         # 运行脚本后生成
     ├── *.stl        # STL 模型
     ├── *.step       # STEP 模型（部分零件）
